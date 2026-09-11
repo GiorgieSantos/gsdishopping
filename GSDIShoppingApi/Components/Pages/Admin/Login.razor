@@ -1,0 +1,56 @@
+@page "/admin/login"
+@layout GSDIShoppingApi.Components.Layout.LoginLayout
+@* Sem @rendermode de propósito: esta página é renderizada estática
+   (server-side, sem circuito Blazor/SignalR) porque o POST abaixo
+   precisa poder gravar um cookie de sessão na resposta — algo que só dá
+   pra fazer numa requisição HTTP comum, não depois que um componente
+   interativo já abriu conexão (ver o comentário em Program.cs, endpoint
+   POST /admin/login-submit).
+
+   O form abaixo posta para "/admin/login-submit", não para "/admin/login"
+   (a rota desta própria página). Se apontasse para a mesma rota "/admin/login",
+   o POST bateria tanto no endpoint mapeado aqui pelo Razor Components (que,
+   por padrão, não se restringe a GET) quanto no app.MapPost("/admin/login")
+   do Program.cs — causando AmbiguousMatchException, já que os dois
+   endpoints combinam com a mesma requisição. *@
+
+<PageTitle>Login administrativo — GSDIShopping</PageTitle>
+
+<div class="login-card">
+    <h1>GSDIShopping</h1>
+    <p class="subtitle">Acesso restrito à administração do programa de fidelidade.</p>
+
+    @if (Erro)
+    {
+        <p class="error">E-mail ou senha inválidos.</p>
+    }
+
+    <form method="post" action="/admin/login-submit">
+        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+        <label>
+            E-mail
+            <input type="email" name="email" required autofocus />
+        </label>
+        <label>
+            Senha
+            <input type="password" name="password" required />
+        </label>
+        <button type="submit">Entrar</button>
+    </form>
+
+    <p class="subtitle" style="margin-top:20px;margin-bottom:0;">
+        Primeiro acesso? Crie o administrador inicial pelo Swagger
+        (<code>POST /api/admin/auth/register</code>) — só funciona enquanto
+        não existir nenhum admin cadastrado. Ver README.md, seção do painel.
+    </p>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "erro")]
+    public string? ErroParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private bool Erro => ErroParam == "1";
+}

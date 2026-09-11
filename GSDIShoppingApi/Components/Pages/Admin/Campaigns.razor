@@ -1,0 +1,208 @@
+@page "/admin/campanhas"
+@attribute [Authorize(Policy = "AdminOnly")]
+@rendermode InteractiveServer
+@inject IDbContextFactory<GSDIShoppingDbContext> DbFactory
+@inject ImageUploadService ImageUpload
+
+<PageTitle>Campanhas — Painel GSDIShopping</PageTitle>
+
+<h1>Campanhas</h1>
+<p class="subtitle" style="color:var(--charcoal-dim);margin-top:-8px;">
+    Uma campanha agrupa cupons resgatáveis por pontos (ver tela Cupons).
+</p>
+
+<div class="toolbar">
+    <span>@_campaigns.Count campanha(s) cadastrada(s)</span>
+    <button class="btn" @onclick="StartCreate">+ Nova campanha</button>
+</div>
+
+@if (_form is not null)
+{
+    <div class="card">
+        <h2>@(_form.Id is null ? "Nova campanha" : "Editar campanha")</h2>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="error">@_error</p>
+        }
+        <EditForm Model="_form" OnSubmit="Save" class="entity-form">
+            <label>
+                Título
+                <input type="text" @bind="_form.Title" />
+            </label>
+            <label>
+                Descrição
+                <textarea rows="3" @bind="_form.Description"></textarea>
+            </label>
+            <label>
+                Início (opcional)
+                <input type="datetime-local" @bind="_form.StartsAt" />
+            </label>
+            <label>
+                Fim (opcional)
+                <input type="datetime-local" @bind="_form.EndsAt" />
+            </label>
+            <label>
+                Imagem (opcional)
+                <InputFile OnChange="OnImageSelected" accept="image/*" />
+            </label>
+            @if (!string.IsNullOrEmpty(_form.ImageUrl))
+            {
+                <img class="thumb" src="@_form.ImageUrl" alt="" />
+            }
+            <div class="actions">
+                <button type="submit" class="btn">Salvar</button>
+                <button type="button" class="btn secondary" @onclick="Cancel">Cancelar</button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@if (_campaigns.Count == 0)
+{
+    <p class="empty">Nenhuma campanha cadastrada ainda.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th></th><th>Título</th><th>Período</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var campaign in _campaigns)
+            {
+                <tr>
+                    <td>
+                        @if (!string.IsNullOrEmpty(campaign.ImageUrl))
+                        {
+                            <img class="thumb" src="@campaign.ImageUrl" alt="" />
+                        }
+                    </td>
+                    <td>@campaign.Title</td>
+                    <td>@FormatPeriod(campaign.StartsAt, campaign.EndsAt)</td>
+                    <td>
+                        <button class="btn secondary" @onclick="() => StartEdit(campaign)">Editar</button>
+                        <button class="btn danger" @onclick="() => Delete(campaign.Id)">Excluir</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Campaign> _campaigns = new();
+    private CampaignForm? _form;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _campaigns = await db.Campaigns.OrderByDescending(c => c.StartsAt).ToListAsync();
+    }
+
+    private void StartCreate()
+    {
+        _form = new CampaignForm();
+        _error = null;
+    }
+
+    private void StartEdit(Campaign campaign)
+    {
+        _form = new CampaignForm
+        {
+            Id = campaign.Id,
+            Title = campaign.Title,
+            Description = campaign.Description,
+            StartsAt = campaign.StartsAt,
+            EndsAt = campaign.EndsAt,
+            ImageUrl = campaign.ImageUrl,
+        };
+        _error = null;
+    }
+
+    private void Cancel()
+    {
+        _form = null;
+        _error = null;
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        if (_form is null) return;
+        _form.ImageUrl = await ImageUpload.SaveAsync(e.File, "campanhas", CancellationToken.None);
+    }
+
+    private async Task Save()
+    {
+        if (_form is null) return;
+
+        if (string.IsNullOrWhiteSpace(_form.Title))
+        {
+            _error = "Título da campanha é obrigatório.";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        if (_form.Id is null)
+        {
+            db.Campaigns.Add(new Campaign
+            {
+                Title = _form.Title.Trim(),
+                Description = _form.Description?.Trim() ?? string.Empty,
+                StartsAt = _form.StartsAt,
+                EndsAt = _form.EndsAt,
+                ImageUrl = _form.ImageUrl,
+            });
+        }
+        else
+        {
+            var campaign = await db.Campaigns.FindAsync(_form.Id.Value);
+            if (campaign is null) { _error = "Campanha não encontrada."; return; }
+            campaign.Title = _form.Title.Trim();
+            campaign.Description = _form.Description?.Trim() ?? string.Empty;
+            campaign.StartsAt = _form.StartsAt;
+            campaign.EndsAt = _form.EndsAt;
+            campaign.ImageUrl = _form.ImageUrl;
+        }
+
+        await db.SaveChangesAsync();
+        _form = null;
+        _error = null;
+        await Load();
+    }
+
+    private async Task Delete(int id)
+    {
+        // Cascade: apagar a campanha apaga os cupons dela também (ver
+        // GSDIShoppingDbContext — decisão registrada em ARQUITETURA_TECNICA.md §8.1).
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var campaign = await db.Campaigns.FindAsync(id);
+        if (campaign is not null)
+        {
+            db.Campaigns.Remove(campaign);
+            await db.SaveChangesAsync();
+        }
+        await Load();
+    }
+
+    private static string FormatPeriod(DateTime? start, DateTime? end)
+    {
+        if (start is null && end is null) return "—";
+        var s = start?.ToString("dd/MM/yyyy") ?? "?";
+        var e = end?.ToString("dd/MM/yyyy") ?? "?";
+        return $"{s} – {e}";
+    }
+
+    private class CampaignForm
+    {
+        public int? Id { get; set; }
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public DateTime? StartsAt { get; set; }
+        public DateTime? EndsAt { get; set; }
+        public string? ImageUrl { get; set; }
+    }
+}

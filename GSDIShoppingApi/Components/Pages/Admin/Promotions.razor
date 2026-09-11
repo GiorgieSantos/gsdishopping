@@ -1,0 +1,230 @@
+@page "/admin/promocoes"
+@attribute [Authorize(Policy = "AdminOnly")]
+@rendermode InteractiveServer
+@inject IDbContextFactory<GSDIShoppingDbContext> DbFactory
+@inject ImageUploadService ImageUpload
+
+<PageTitle>Promoções — Painel GSDIShopping</PageTitle>
+
+<h1>Promoções</h1>
+<p class="subtitle" style="color:var(--charcoal-dim);margin-top:-8px;">
+    Promoção é um anúncio de desconto — sem custo em pontos, sem resgate.
+    Pode ser de uma loja específica ou geral do shopping (deixe "Loja" em
+    branco). Diferente de cupom (ver tela Cupons).
+</p>
+
+<div class="toolbar">
+    <span>@_promotions.Count promoção(ões) cadastrada(s)</span>
+    <button class="btn" @onclick="StartCreate">+ Nova promoção</button>
+</div>
+
+@if (_form is not null)
+{
+    <div class="card">
+        <h2>@(_form.Id is null ? "Nova promoção" : "Editar promoção")</h2>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="error">@_error</p>
+        }
+        <EditForm Model="_form" OnSubmit="Save" class="entity-form">
+            <label>
+                Título
+                <input type="text" @bind="_form.Title" />
+            </label>
+            <label>
+                Descrição
+                <textarea rows="3" @bind="_form.Description"></textarea>
+            </label>
+            <label>
+                Texto do desconto (ex.: "20% OFF")
+                <input type="text" @bind="_form.DiscountLabel" />
+            </label>
+            <label>
+                Loja (opcional — em branco = promoção geral do shopping)
+                <select @bind="_form.StoreId">
+                    <option value="">— Promoção geral do shopping —</option>
+                    @foreach (var store in _stores)
+                    {
+                        <option value="@store.Id">@store.Name</option>
+                    }
+                </select>
+            </label>
+            <label>
+                Início (opcional)
+                <input type="datetime-local" @bind="_form.StartsAt" />
+            </label>
+            <label>
+                Fim (opcional)
+                <input type="datetime-local" @bind="_form.EndsAt" />
+            </label>
+            <label>
+                Imagem (opcional)
+                <InputFile OnChange="OnImageSelected" accept="image/*" />
+            </label>
+            @if (!string.IsNullOrEmpty(_form.ImageUrl))
+            {
+                <img class="thumb" src="@_form.ImageUrl" alt="" />
+            }
+            <div class="actions">
+                <button type="submit" class="btn">Salvar</button>
+                <button type="button" class="btn secondary" @onclick="Cancel">Cancelar</button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@if (_promotions.Count == 0)
+{
+    <p class="empty">Nenhuma promoção cadastrada ainda.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th></th><th>Título</th><th>Desconto</th><th>Loja</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var promotion in _promotions)
+            {
+                <tr>
+                    <td>
+                        @if (!string.IsNullOrEmpty(promotion.ImageUrl))
+                        {
+                            <img class="thumb" src="@promotion.ImageUrl" alt="" />
+                        }
+                    </td>
+                    <td>@promotion.Title</td>
+                    <td><span class="badge info">@promotion.DiscountLabel</span></td>
+                    <td>@(promotion.Store?.Name ?? "Shopping (geral)")</td>
+                    <td>
+                        <button class="btn secondary" @onclick="() => StartEdit(promotion)">Editar</button>
+                        <button class="btn danger" @onclick="() => Delete(promotion.Id)">Excluir</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Promotion> _promotions = new();
+    private List<Store> _stores = new();
+    private PromotionForm? _form;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _stores = await db.Stores.OrderBy(s => s.Name).ToListAsync();
+        _promotions = await db.Promotions.Include(p => p.Store).OrderByDescending(p => p.StartsAt).ToListAsync();
+    }
+
+    private void StartCreate()
+    {
+        _form = new PromotionForm();
+        _error = null;
+    }
+
+    private void StartEdit(Promotion promotion)
+    {
+        _form = new PromotionForm
+        {
+            Id = promotion.Id,
+            Title = promotion.Title,
+            Description = promotion.Description,
+            DiscountLabel = promotion.DiscountLabel,
+            StoreId = promotion.StoreId,
+            StartsAt = promotion.StartsAt,
+            EndsAt = promotion.EndsAt,
+            ImageUrl = promotion.ImageUrl,
+        };
+        _error = null;
+    }
+
+    private void Cancel()
+    {
+        _form = null;
+        _error = null;
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        if (_form is null) return;
+        _form.ImageUrl = await ImageUpload.SaveAsync(e.File, "promocoes", CancellationToken.None);
+    }
+
+    private async Task Save()
+    {
+        if (_form is null) return;
+
+        if (string.IsNullOrWhiteSpace(_form.Title))
+        {
+            _error = "Título da promoção é obrigatório.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_form.DiscountLabel))
+        {
+            _error = "Informe o texto do desconto (ex.: \"20% OFF\").";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        if (_form.Id is null)
+        {
+            db.Promotions.Add(new Promotion
+            {
+                Title = _form.Title.Trim(),
+                Description = _form.Description?.Trim() ?? string.Empty,
+                DiscountLabel = _form.DiscountLabel.Trim(),
+                StoreId = _form.StoreId,
+                StartsAt = _form.StartsAt,
+                EndsAt = _form.EndsAt,
+                ImageUrl = _form.ImageUrl,
+            });
+        }
+        else
+        {
+            var promotion = await db.Promotions.FindAsync(_form.Id.Value);
+            if (promotion is null) { _error = "Promoção não encontrada."; return; }
+            promotion.Title = _form.Title.Trim();
+            promotion.Description = _form.Description?.Trim() ?? string.Empty;
+            promotion.DiscountLabel = _form.DiscountLabel.Trim();
+            promotion.StoreId = _form.StoreId;
+            promotion.StartsAt = _form.StartsAt;
+            promotion.EndsAt = _form.EndsAt;
+            promotion.ImageUrl = _form.ImageUrl;
+        }
+
+        await db.SaveChangesAsync();
+        _form = null;
+        _error = null;
+        await Load();
+    }
+
+    private async Task Delete(int id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var promotion = await db.Promotions.FindAsync(id);
+        if (promotion is not null)
+        {
+            db.Promotions.Remove(promotion);
+            await db.SaveChangesAsync();
+        }
+        await Load();
+    }
+
+    private class PromotionForm
+    {
+        public int? Id { get; set; }
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public string DiscountLabel { get; set; } = "";
+        public int? StoreId { get; set; }
+        public DateTime? StartsAt { get; set; }
+        public DateTime? EndsAt { get; set; }
+        public string? ImageUrl { get; set; }
+    }
+}

@@ -1,0 +1,7 @@
+@page "/admin"
+@attribute [Authorize(Policy = "AdminOnly")]
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo("/admin/lojas", forceLoad: true);
+}

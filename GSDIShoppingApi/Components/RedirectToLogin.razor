@@ -1,0 +1,12 @@
+@* Componente sem markup: só dispara o redirecionamento pra tela de login
+   quando o AuthorizeRouteView (Routes.razor) decide que a rota atual
+   exige login e o usuário não está autenticado (ou não é Admin). *@
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        var returnUrl = Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery);
+        Nav.NavigateTo($"/admin/login?returnUrl={returnUrl}", forceLoad: true);
+    }
+}

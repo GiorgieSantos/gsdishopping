@@ -1,0 +1,303 @@
+/* Painel de administração GSDIShopping — mesma paleta da identidade visual
+   do app (ver ARQUITETURA_TECNICA.md, seção 9 / lib/core/theme/app_theme.dart),
+   aplicada de forma bem mais simples: aqui é uma ferramenta interna. */
+:root {
+  --ink: #241b17;
+  --sand: #f4ecdd;
+  --brass: #cd9f49;
+  --brass-deep: #a97b2e;
+  --forest: #33493f;
+  --brick: #a6503d;
+  --ok: #4c7a5b;
+  --charcoal: #2a2118;
+  --charcoal-dim: #7a6c5e;
+  --border: #e3d8c3;
+  --card: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--sand);
+  color: var(--charcoal);
+}
+
+a { color: var(--brass-deep); }
+
+/* ---- Shell (sidebar + conteúdo), usado pelas páginas autenticadas ---- */
+.admin-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--ink);
+  color: var(--sand);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+}
+
+.sidebar .brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0 20px 20px;
+  border-bottom: 1px solid rgba(244, 236, 221, 0.15);
+  margin-bottom: 12px;
+}
+
+.sidebar .brand span {
+  display: block;
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--brass);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.sidebar nav a {
+  color: var(--sand);
+  text-decoration: none;
+  padding: 10px 20px;
+  opacity: 0.8;
+}
+
+.sidebar nav a:hover,
+.sidebar nav a.active {
+  opacity: 1;
+  background: rgba(205, 159, 73, 0.18);
+  border-left: 3px solid var(--brass);
+}
+
+.logout-form {
+  padding: 12px 20px 0;
+  margin-top: 12px;
+  border-top: 1px solid rgba(244, 236, 221, 0.15);
+}
+
+.logout-form button {
+  background: none;
+  border: none;
+  color: var(--sand);
+  opacity: 0.75;
+  cursor: pointer;
+  padding: 8px 0;
+  font-size: 0.95rem;
+}
+
+.logout-form button:hover { opacity: 1; }
+
+main {
+  flex: 1;
+  padding: 28px 36px;
+  max-width: 1100px;
+}
+
+main h1 {
+  margin-top: 0;
+  font-size: 1.4rem;
+}
+
+/* ---- Elementos comuns das telas de CRUD ---- */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-block;
+  background: var(--ink);
+  color: var(--sand);
+  border: none;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:hover { background: var(--charcoal); }
+
+.btn.secondary {
+  background: transparent;
+  color: var(--charcoal);
+  border: 1px solid var(--border);
+}
+
+.btn.danger {
+  background: var(--brick);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+th, td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+
+th {
+  background: rgba(205, 159, 73, 0.12);
+  font-weight: 600;
+}
+
+tr:last-child td { border-bottom: none; }
+
+.thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--sand);
+  border: 1px solid var(--border);
+}
+
+form.entity-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+}
+
+form.entity-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.88rem;
+  color: var(--charcoal-dim);
+}
+
+form.entity-form input[type="text"],
+form.entity-form input[type="email"],
+form.entity-form input[type="password"],
+form.entity-form input[type="number"],
+form.entity-form input[type="datetime-local"],
+form.entity-form textarea {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--charcoal);
+}
+
+form.entity-form .actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 100px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.badge.ok { background: rgba(76, 122, 91, 0.15); color: var(--ok); }
+.badge.warn { background: rgba(166, 80, 61, 0.15); color: var(--brick); }
+.badge.info { background: rgba(51, 73, 63, 0.12); color: var(--forest); }
+
+.error {
+  color: var(--brick);
+  font-size: 0.9rem;
+}
+
+.empty {
+  color: var(--charcoal-dim);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+/* ---- Tela de login (sem sidebar) ---- */
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+}
+
+.login-card {
+  background: var(--sand);
+  border-radius: 16px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.login-card h1 {
+  font-size: 1.2rem;
+  margin: 0 0 4px;
+}
+
+.login-card .subtitle {
+  color: var(--charcoal-dim);
+  font-size: 0.88rem;
+  margin-bottom: 20px;
+}
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.login-card input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+
+.login-card button {
+  margin-top: 6px;
+  background: var(--brass-deep);
+  color: var(--ink);
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-card button:hover { background: var(--brass); }

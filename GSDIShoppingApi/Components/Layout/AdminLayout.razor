@@ -1,0 +1,21 @@
+@inherits LayoutComponentBase
+
+<div class="admin-shell">
+    <aside class="sidebar">
+        <div class="brand">GSDIShopping<span>Painel admin</span></div>
+        <nav>
+            <NavLink href="/admin/lojas">Lojas</NavLink>
+            <NavLink href="/admin/campanhas">Campanhas</NavLink>
+            <NavLink href="/admin/cupons">Cupons</NavLink>
+            <NavLink href="/admin/promocoes">Promoções</NavLink>
+            <NavLink href="/admin/usuarios">Usuários e pontos</NavLink>
+            <NavLink href="/admin/parametros">Parâmetros</NavLink>
+        </nav>
+        <form method="post" action="/admin/logout" class="logout-form">
+            <button type="submit">Sair</button>
+        </form>
+    </aside>
+    <main>
+        @Body
+    </main>
+</div>

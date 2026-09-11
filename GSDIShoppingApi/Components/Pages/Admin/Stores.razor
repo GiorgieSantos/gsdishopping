@@ -1,0 +1,206 @@
+@page "/admin/lojas"
+@attribute [Authorize(Policy = "AdminOnly")]
+@rendermode InteractiveServer
+@inject IDbContextFactory<GSDIShoppingDbContext> DbFactory
+@inject ImageUploadService ImageUpload
+
+<PageTitle>Lojas — Painel GSDIShopping</PageTitle>
+
+<h1>Lojas</h1>
+
+<div class="toolbar">
+    <span>@_stores.Count loja(s) cadastrada(s)</span>
+    <button class="btn" @onclick="StartCreate">+ Nova loja</button>
+</div>
+
+@if (_form is not null)
+{
+    <div class="card">
+        <h2>@(_form.Id is null ? "Nova loja" : "Editar loja")</h2>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="error">@_error</p>
+        }
+        <EditForm Model="_form" OnSubmit="Save" FormName="store-form" class="entity-form">
+            <label>
+                Nome
+                <input type="text" @bind="_form.Name" />
+            </label>
+            <label>
+                CNPJ (só números, 14 dígitos)
+                <input type="text" @bind="_form.Cnpj" maxlength="18" />
+            </label>
+            <label>
+                Andar/piso (opcional)
+                <input type="text" @bind="_form.Floor" />
+            </label>
+            <label>
+                Logo (opcional)
+                <InputFile OnChange="OnLogoSelected" accept="image/*" />
+            </label>
+            @if (!string.IsNullOrEmpty(_form.LogoUrl))
+            {
+                <img class="thumb" src="@_form.LogoUrl" alt="" />
+            }
+            <div class="actions">
+                <button type="submit" class="btn">Salvar</button>
+                <button type="button" class="btn secondary" @onclick="Cancel">Cancelar</button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@if (_stores.Count == 0)
+{
+    <p class="empty">Nenhuma loja cadastrada ainda.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th></th><th>Nome</th><th>CNPJ</th><th>Andar</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var store in _stores)
+            {
+                <tr>
+                    <td>
+                        @if (!string.IsNullOrEmpty(store.LogoUrl))
+                        {
+                            <img class="thumb" src="@store.LogoUrl" alt="" />
+                        }
+                    </td>
+                    <td>@store.Name</td>
+                    <td>@FormatCnpj(store.Cnpj)</td>
+                    <td>@store.Floor</td>
+                    <td>
+                        <button class="btn secondary" @onclick="() => StartEdit(store)">Editar</button>
+                        <button class="btn danger" @onclick="() => Delete(store.Id)">Excluir</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Store> _stores = new();
+    private StoreForm? _form;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _stores = await db.Stores.OrderBy(s => s.Name).ToListAsync();
+    }
+
+    private void StartCreate()
+    {
+        _form = new StoreForm();
+        _error = null;
+    }
+
+    private void StartEdit(Store store)
+    {
+        _form = new StoreForm
+        {
+            Id = store.Id,
+            Name = store.Name,
+            Cnpj = store.Cnpj,
+            Floor = store.Floor,
+            LogoUrl = store.LogoUrl,
+        };
+        _error = null;
+    }
+
+    private void Cancel()
+    {
+        _form = null;
+        _error = null;
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        if (_form is null) return;
+        _form.LogoUrl = await ImageUpload.SaveAsync(e.File, "lojas", CancellationToken.None);
+    }
+
+    private async Task Save()
+    {
+        if (_form is null) return;
+
+        if (string.IsNullOrWhiteSpace(_form.Name))
+        {
+            _error = "Nome da loja é obrigatório.";
+            return;
+        }
+        var cnpjDigits = DocumentValidators.OnlyDigits(_form.Cnpj);
+        if (!DocumentValidators.IsValidCnpj(cnpjDigits))
+        {
+            _error = "Informe um CNPJ válido (14 dígitos).";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var cnpjExists = await db.Stores.AnyAsync(s => s.Cnpj == cnpjDigits && s.Id != (_form.Id ?? 0));
+        if (cnpjExists)
+        {
+            _error = "Já existe uma loja cadastrada com este CNPJ.";
+            return;
+        }
+
+        if (_form.Id is null)
+        {
+            db.Stores.Add(new Store
+            {
+                Name = _form.Name.Trim(),
+                Cnpj = cnpjDigits,
+                Floor = string.IsNullOrWhiteSpace(_form.Floor) ? null : _form.Floor.Trim(),
+                LogoUrl = _form.LogoUrl,
+            });
+        }
+        else
+        {
+            var store = await db.Stores.FindAsync(_form.Id.Value);
+            if (store is null) { _error = "Loja não encontrada."; return; }
+            store.Name = _form.Name.Trim();
+            store.Cnpj = cnpjDigits;
+            store.Floor = string.IsNullOrWhiteSpace(_form.Floor) ? null : _form.Floor.Trim();
+            store.LogoUrl = _form.LogoUrl;
+        }
+
+        await db.SaveChangesAsync();
+        _form = null;
+        _error = null;
+        await Load();
+    }
+
+    private async Task Delete(int id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var store = await db.Stores.FindAsync(id);
+        if (store is not null)
+        {
+            db.Stores.Remove(store);
+            await db.SaveChangesAsync();
+        }
+        await Load();
+    }
+
+    private static string FormatCnpj(string digits) =>
+        digits.Length == 14
+            ? $"{digits[..2]}.{digits[2..5]}.{digits[5..8]}/{digits[8..12]}-{digits[12..]}"
+            : digits;
+
+    private class StoreForm
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Cnpj { get; set; } = "";
+        public string? Floor { get; set; }
+        public string? LogoUrl { get; set; }
+    }
+}

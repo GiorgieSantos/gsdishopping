@@ -1,0 +1,59 @@
+@page "/admin/usuarios"
+@attribute [Authorize(Policy = "AdminOnly")]
+@rendermode InteractiveServer
+@inject IDbContextFactory<GSDIShoppingDbContext> DbFactory
+@inject IPointsService PointsService
+
+<PageTitle>Usuários — Painel GSDIShopping</PageTitle>
+
+<h1>Usuários e pontos</h1>
+
+@if (_users.Count == 0)
+{
+    <p class="empty">Nenhum cliente cadastrado ainda.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>E-mail</th><th>CPF</th><th>Saldo</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var (user, balance) in _users)
+            {
+                <tr>
+                    <td>@user.Name</td>
+                    <td>@user.Email</td>
+                    <td>@FormatCpf(user.Cpf)</td>
+                    <td><strong>@balance pts</strong></td>
+                    <td>
+                        <a class="btn secondary" href="/admin/usuarios/@user.Id">Ver extrato / ajustar</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<(ApplicationUser user, int balance)> _users = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var users = await db.Users.OrderBy(u => u.Name).ToListAsync();
+
+        var result = new List<(ApplicationUser, int)>(users.Count);
+        foreach (var user in users)
+        {
+            var balance = await PointsService.GetBalanceAsync(user.Id, CancellationToken.None);
+            result.Add((user, balance));
+        }
+        _users = result;
+    }
+
+    private static string FormatCpf(string digits) =>
+        digits.Length == 11
+            ? $"{digits[..3]}.{digits[3..6]}.{digits[6..9]}-{digits[9..]}"
+            : digits;
+}

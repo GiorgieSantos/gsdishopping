@@ -1,0 +1,186 @@
+@page "/admin/usuarios/{UserId:int}"
+@attribute [Authorize(Policy = "AdminOnly")]
+@rendermode InteractiveServer
+@inject IDbContextFactory<GSDIShoppingDbContext> DbFactory
+@inject IPointsService PointsService
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Extrato do cliente — Painel GSDIShopping</PageTitle>
+
+<p><a href="/admin/usuarios">&larr; Usuários</a></p>
+
+@if (_user is null)
+{
+    <p class="empty">Cliente não encontrado.</p>
+}
+else
+{
+    <h1>@_user.Name</h1>
+    <p class="subtitle" style="color:var(--charcoal-dim);margin-top:-8px;">
+        @_user.Email — CPF @FormatCpf(_user.Cpf)
+    </p>
+
+    <div class="card">
+        <div class="toolbar" style="margin-bottom:0;">
+            <span>Saldo atual: <strong>@_balance pts</strong></span>
+            <button class="btn" @onclick="() => _showAdjustForm = !_showAdjustForm">
+                @(_showAdjustForm ? "Cancelar ajuste" : "+ Ajustar pontos")
+            </button>
+        </div>
+
+        @if (_showAdjustForm)
+        {
+            <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;" />
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <p class="error">@_error</p>
+            }
+            <EditForm Model="_adjustForm" OnSubmit="Adjust" class="entity-form">
+                <label>
+                    Pontos (positivo credita, negativo debita/corrige)
+                    <input type="number" @bind="_adjustForm.PointsDelta" />
+                </label>
+                <label>
+                    Motivo (fica registrado no extrato do cliente)
+                    <input type="text" @bind="_adjustForm.Reason" placeholder="Ex.: bônus de aniversário, correção de nota duplicada..." />
+                </label>
+                <div class="actions">
+                    <button type="submit" class="btn">Confirmar ajuste</button>
+                </div>
+            </EditForm>
+        }
+    </div>
+
+    <h2>Extrato</h2>
+    @if (_extrato.Count == 0)
+    {
+        <p class="empty">Nenhuma movimentação ainda.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Data</th><th>Tipo</th><th>Detalhe</th><th>Pontos</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in _extrato)
+                {
+                    <tr>
+                        <td>@entry.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            @if (entry.Type == "Compra")
+                            {
+                                <span class="badge info">Compra</span>
+                            }
+                            else
+                            {
+                                <span class="badge warn">Ajuste</span>
+                            }
+                        </td>
+                        <td>@(entry.Type == "Compra" ? $"{entry.StoreName} — R$ {entry.TotalValue:F2}" : entry.Reason)</td>
+                        <td>@(entry.PointsDelta >= 0 ? $"+{entry.PointsDelta}" : entry.PointsDelta.ToString())</td>
+                        <td>
+                            @if (entry.Status == "Approved")
+                            {
+                                <span class="badge ok">Aprovado</span>
+                            }
+                            else
+                            {
+                                <span class="badge warn">@StatusLabel(entry.Status)</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter] public int UserId { get; set; }
+
+    private ApplicationUser? _user;
+    private int _balance;
+    private List<WalletEntryResponse> _extrato = new();
+    private bool _showAdjustForm;
+    private string? _error;
+    private AdjustForm _adjustForm = new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _user = await db.Users.FindAsync(UserId);
+        if (_user is null) return;
+
+        var compras = await db.PointTransactions
+            .Where(t => t.UserId == UserId)
+            .Select(t => new WalletEntryResponse(
+                t.Id, "Compra", t.StoreId, t.Store!.Name, t.TotalValue, t.PointsEarned, t.Status.ToString(), null, t.CreatedAt))
+            .ToListAsync();
+
+        var ajustes = await db.PointsAdjustments
+            .Where(a => a.UserId == UserId)
+            .Select(a => new WalletEntryResponse(
+                a.Id, "Ajuste", null, null, null, a.PointsDelta, "Approved", a.Reason, a.CreatedAt))
+            .ToListAsync();
+
+        _extrato = compras.Concat(ajustes).OrderByDescending(e => e.CreatedAt).ToList();
+        _balance = await PointsService.GetBalanceAsync(UserId, CancellationToken.None);
+    }
+
+    private async Task Adjust()
+    {
+        _error = null;
+
+        if (_adjustForm.PointsDelta == 0)
+        {
+            _error = "Informe um ajuste diferente de zero.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_adjustForm.Reason))
+        {
+            _error = "Informe o motivo do ajuste.";
+            return;
+        }
+
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var adminId = int.Parse(authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.PointsAdjustments.Add(new PointsAdjustment
+        {
+            UserId = UserId,
+            PointsDelta = _adjustForm.PointsDelta,
+            Reason = _adjustForm.Reason.Trim(),
+            AdminUserId = adminId,
+        });
+        await db.SaveChangesAsync();
+
+        _adjustForm = new AdjustForm();
+        _showAdjustForm = false;
+        await Load();
+    }
+
+    private static string FormatCpf(string digits) =>
+        digits.Length == 11
+            ? $"{digits[..3]}.{digits[3..6]}.{digits[6..9]}-{digits[9..]}"
+            : digits;
+
+    /// <summary>Traduz o nome cru do ReceiptStatus para o que o admin lê no extrato — ver Models/ReceiptStatus.cs.</summary>
+    private static string StatusLabel(string status) => status switch
+    {
+        "Pending" => "Em análise",
+        "PendingReview" => "Aguardando revisão (valor/CPF divergente)",
+        "RejectedDuplicate" => "Rejeitada — nota duplicada",
+        "RejectedInvalid" => "Rejeitada — inválida",
+        _ => status,
+    };
+
+    private class AdjustForm
+    {
+        public int PointsDelta { get; set; }
+        public string Reason { get; set; } = "";
+    }
+}

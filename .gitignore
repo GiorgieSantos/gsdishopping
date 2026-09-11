@@ -1,0 +1,62 @@
+# ==== Segredos — nunca commitados ====
+# appsettings.Development.json normalmente guarda a connection string real do
+# MySQL e a chave JWT local. Ignorado de propósito — ver appsettings.json
+# (o base, sem segredos) que continua versionado como referência de formato.
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/appsettings.Local.json
+
+# ==== .NET / GSDIShoppingApi ====
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ==== Flutter / gsdishopping_app ====
+**/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+*.iml
+*.ipr
+*.iws
+
+# Android (gerado por `flutter create`, específico da máquina)
+android/**/gradle-wrapper.jar
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+**/GeneratedPluginRegistrant.java
+**/GeneratedPluginRegistrant.swift
+
+# Assinatura Android — nunca commitar
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+
+# iOS (gerado pelo Xcode/CocoaPods, específico da máquina)
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+**/*.xcuserstate
+**/xcuserdata/
+ios/ServiceDefinitions.json
+
+# ==== Geral ====
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json

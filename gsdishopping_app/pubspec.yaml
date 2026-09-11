@@ -1,0 +1,44 @@
+name: gsdishopping_app
+description: >
+  App de fidelidade para shopping — carteira de pontos, catálogo de lojas/
+  campanhas/cupons/promoções, scanner de nota fiscal (OCR + QR de NFC-e) e
+  integração com o backend próprio (GSDIShoppingApi).
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Estado / DI
+  flutter_riverpod: ^2.5.1
+
+  # Rede / integração com o backend (GSDIShoppingApi)
+  dio: ^5.5.0
+  flutter_secure_storage: ^9.2.2 # guardar token de auth do usuário final
+
+  # Câmera, OCR e leitura de QR code (NFC-e)
+  camera: ^0.11.0
+  google_mlkit_text_recognition: ^0.14.0
+  mobile_scanner: ^5.2.3 # leitura do QR code impresso no cupom fiscal
+
+  # Utilidades
+  intl: ^0.19.0
+  cached_network_image: ^3.4.1
+
+  # Identidade visual (tema em lib/core/theme/app_theme.dart)
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # assets:
+  #   - assets/images/

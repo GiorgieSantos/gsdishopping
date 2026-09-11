@@ -1,0 +1,129 @@
+@page "/admin/parametros"
+@attribute [Authorize(Policy = "AdminOnly")]
+@rendermode InteractiveServer
+@inject IDbContextFactory<GSDIShoppingDbContext> DbFactory
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Parâmetros — Painel GSDIShopping</PageTitle>
+
+<h1>Parâmetros</h1>
+<p class="subtitle" style="color:var(--charcoal-dim);margin-top:-8px;">
+    Regras de negócio configuráveis sem precisar mexer em código — o próprio
+    sistema cria a chave na primeira vez que passa a usá-la; aqui você só
+    ajusta o valor. Pense nisso como "opções", não como um lugar para
+    cadastrar dados novos.
+</p>
+
+@if (_parameters.Count == 0)
+{
+    <p class="empty">Nenhum parâmetro configurável ainda — eles aparecem aqui assim que o sistema os criar.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>Parâmetro</th><th>Descrição</th><th>Valor</th><th>Atualizado em</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var parameter in _parameters)
+            {
+                <tr>
+                    <td><code>@parameter.Key</code></td>
+                    <td style="max-width:360px;">@parameter.Description</td>
+                    <td>
+                        @if (_editingId == parameter.Id)
+                        {
+                            @if (parameter.Key == "CpfDivergenteAction")
+                            {
+                                <select @bind="_editValue">
+                                    @foreach (var option in CpfDivergenteAction.Todos)
+                                    {
+                                        <option value="@option">@option</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <input type="text" @bind="_editValue" />
+                            }
+                        }
+                        else
+                        {
+                            <strong>@parameter.Value</strong>
+                        }
+                    </td>
+                    <td>@parameter.UpdatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>
+                        @if (_editingId == parameter.Id)
+                        {
+                            <button class="btn" @onclick="() => Save(parameter.Id)">Salvar</button>
+                            <button class="btn secondary" @onclick="CancelEdit">Cancelar</button>
+                        }
+                        else
+                        {
+                            <button class="btn secondary" @onclick="() => StartEdit(parameter)">Editar</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="error">@_error</p>
+}
+
+@code {
+    private List<SystemParameter> _parameters = new();
+    private int? _editingId;
+    private string _editValue = "";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _parameters = await db.SystemParameters.OrderBy(p => p.Key).ToListAsync();
+    }
+
+    private void StartEdit(SystemParameter parameter)
+    {
+        _editingId = parameter.Id;
+        _editValue = parameter.Value;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _error = null;
+    }
+
+    private async Task Save(int id)
+    {
+        if (string.IsNullOrWhiteSpace(_editValue))
+        {
+            _error = "Informe um valor.";
+            return;
+        }
+
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var adminId = int.Parse(authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var parameter = await db.SystemParameters.FindAsync(id);
+        if (parameter is null) { _error = "Parâmetro não encontrado."; return; }
+
+        parameter.Value = _editValue.Trim();
+        parameter.UpdatedAt = DateTime.UtcNow;
+        parameter.UpdatedByAdminId = adminId;
+        await db.SaveChangesAsync();
+
+        _editingId = null;
+        _error = null;
+        await Load();
+    }
+}
